@@ -781,8 +781,8 @@ int main(int argc, char** argv)
         spdlog::error("{0}", e.what());
         //spdlog::error("{0}\n{1}", e.what(), fmt::streamed(p));
         std::cout << globalParser << std::endl;
-        return 1;
+        return -1;
     }
-    return 0;
+    return -1;
 }
 
