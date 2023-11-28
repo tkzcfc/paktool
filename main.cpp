@@ -8,6 +8,7 @@
 #include "spdlog/fmt/fmt.h"
 #include "spdlog/fmt/ostr.h"
 #include <filesystem>
+#include "Crc32.h"
 
 extern "C" {
 #include "zlib.h"
@@ -333,7 +334,7 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
     offset += 8;
 
     // crc32校验码
-    auto crc32 = readUint32InBigEndian(&headBuffer[offset]);
+    auto fileCrc32Value = readUint32InBigEndian(&headBuffer[offset]);
     offset += 4;
 
     if (version != 0)
@@ -383,6 +384,7 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
     // 数据缓存
     std::string dataBuffer;
     std::string plaintext;
+    uint32_t sumCrc32Value = 0;
     offset = 0;
     while(offset < indexBufLength)
     {
@@ -436,6 +438,7 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
             return -1;
         }
 
+        sumCrc32Value = crc32_fast(dataBuffer.data(), itemLength, sumCrc32Value);
         XorContent(dataSecret, dataBuffer.data(), itemLength);
 
         switch (compressionType)
@@ -467,6 +470,12 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
     assert(offset == indexBufLength);
 #undef CHECK_SIZE
 
+    if (fileCrc32Value != sumCrc32Value)
+    {
+        spdlog::error("CRC verification inconsistency");
+        spdlog::error("file crc32: 0x{:X}, current crc32: 0x{:X}", fileCrc32Value, sumCrc32Value);
+    }
+
     return 0;
 }
 
@@ -487,6 +496,7 @@ int DoPack(Context& context, const std::set<std::string>& compressFileExtSet)
     std::string buffer;
     std::string compressedStr;
 
+    uint32_t crc32Value = 0;
     for (auto& item : context.items)
     {
         std::ifstream f(item.fullpath, std::ifstream::binary);
@@ -522,6 +532,7 @@ int DoPack(Context& context, const std::set<std::string>& compressFileExtSet)
                 item.compressionType = CompressionType::Gzip;
                 XorContent(context.dataSecret, compressedStr.data(), compressedStr.length());
                 ofs.write(compressedStr.data(), compressedStr.length());
+                crc32Value = crc32_fast(compressedStr.data(), compressedStr.length(), crc32Value);
             }
             else
             {
@@ -533,6 +544,7 @@ int DoPack(Context& context, const std::set<std::string>& compressFileExtSet)
         {
             XorContent(context.dataSecret, buffer.data(), length);
             ofs.write(buffer.data(), length);
+            crc32Value = crc32_fast(buffer.data(), length, crc32Value);
         }
 
         item.offset = offset;
@@ -577,7 +589,7 @@ int DoPack(Context& context, const std::set<std::string>& compressFileExtSet)
         offset += 8;
 
         // crc32
-        writeUint32InBigEndian(header + offset, 0);
+        writeUint32InBigEndian(header + offset, crc32Value);
         offset += 4;
 
         ofs.seekp(0, std::ios_base::beg);
@@ -652,9 +664,9 @@ void PackCommand(args::Subparser& parser)
         return;
     }
 
-    std::vector<Context*> contexts;
+    std::vector<std::shared_ptr<Context>> contexts;
 
-    Context* pContext = NULL;
+    std::shared_ptr<Context> pContext = NULL;
 
     IndexItem item;
     uint64_t curBytes = 0ULL;
@@ -701,7 +713,7 @@ void PackCommand(args::Subparser& parser)
 
             if (pContext == NULL)
             {
-                pContext = new Context();
+                pContext = std::make_shared<Context>();
                 pContext->version = 0;
                 pContext->indexSecret = indexSecret.Get();
                 pContext->dataSecret = dataSecret.Get();

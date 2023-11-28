@@ -10,6 +10,8 @@ project(${name})
 
 set(_Sources
     ${CMAKE_CURRENT_LIST_DIR}/main.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/Crc32.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/Crc32.h
 )
 
 source_group("" FILES ${_Sources})
