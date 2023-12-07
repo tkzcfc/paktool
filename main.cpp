@@ -111,14 +111,10 @@ inline void XorContent(uint64_t s, char* buf, size_t len)
 {
     if (s == 0)
         return;
-    auto p = (char*)&s;
-    auto left = len % sizeof(s);
-    size_t i = 0;
-    for (; i < len - left; i += sizeof(s)) {
-        *(uint64_t*)&buf[i] ^= s;
-    }
-    for (auto j = i; i < len; ++i) {
-        buf[i] ^= p[i - j];
+    auto p = reinterpret_cast<unsigned char*>(&s);
+    for (size_t i = 0; i < len; ++i)
+    {
+        buf[i] ^= p[i % sizeof(s)];
     }
 }
 
