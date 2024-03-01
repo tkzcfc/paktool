@@ -107,14 +107,41 @@ uint64_t readUint64InBigEndian(void* memory)
         (((uint64_t)p[7]));
 }
 
-inline void XorContent(uint64_t s, char* buf, size_t len) 
+inline bool isBigEndian()
+{
+    union {
+        uint32_t i;
+        char c[4];
+    } bint = { 0x01000000 };
+
+    return bint.c[0] == 1;
+}
+
+inline void xorContent(uint32_t s, char* buf, size_t len)
 {
     if (s == 0)
         return;
     auto p = reinterpret_cast<unsigned char*>(&s);
+
+    char sBuf[4] = { 0 };
+    if (isBigEndian())
+    {
+        sBuf[0] = p[3];
+        sBuf[1] = p[2];
+        sBuf[2] = p[1];
+        sBuf[3] = p[0];
+    }
+    else
+    {
+        sBuf[0] = p[0];
+        sBuf[1] = p[1];
+        sBuf[2] = p[2];
+        sBuf[3] = p[3];
+    }
+
     for (size_t i = 0; i < len; ++i)
     {
-        buf[i] ^= p[i % sizeof(s)];
+        buf[i] ^= sBuf[i % sizeof(s)];
     }
 }
 
