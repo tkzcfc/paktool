@@ -431,7 +431,7 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
         auto itemPath = std::string(&indexBuffer[offset], nameLength);
         offset += nameLength;
         
-        XorContent(indexSecret, itemPath.data(), itemPath.length());
+        XorContent(indexSecret, (char*)itemPath.data(), itemPath.length());
         std::filesystem::path itemFullpath = outDir + itemPath;
 
         // ‘§∑÷≈‰ƒ⁄¥Ê
@@ -462,7 +462,7 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
         }
 
         sumCrc32Value = crc32_fast(dataBuffer.data(), itemLength, sumCrc32Value);
-        XorContent(dataSecret, dataBuffer.data(), itemLength);
+        XorContent(dataSecret, (char*)dataBuffer.data(), itemLength);
 
         switch (compressionType)
         {
@@ -553,7 +553,7 @@ int DoPack(Context& context, const std::set<std::string>& compressFileExtSet)
             {
                 length = compressedStr.length();
                 item.compressionType = CompressionType::Gzip;
-                XorContent(context.dataSecret, compressedStr.data(), compressedStr.length());
+                XorContent(context.dataSecret, (char*)compressedStr.data(), compressedStr.length());
                 ofs.write(compressedStr.data(), compressedStr.length());
                 crc32Value = crc32_fast(compressedStr.data(), compressedStr.length(), crc32Value);
             }
@@ -565,7 +565,7 @@ int DoPack(Context& context, const std::set<std::string>& compressFileExtSet)
 
         if (item.compressionType == CompressionType::None)
         {
-            XorContent(context.dataSecret, buffer.data(), length);
+            XorContent(context.dataSecret, (char*)buffer.data(), length);
             ofs.write(buffer.data(), length);
             crc32Value = crc32_fast(buffer.data(), length, crc32Value);
         }
@@ -584,7 +584,7 @@ int DoPack(Context& context, const std::set<std::string>& compressFileExtSet)
         fileInfoBuf[13] = item.compressionType;
 
         ofs.write((char*)fileInfoBuf, sizeof(fileInfoBuf));
-        XorContent(context.indexSecret, item.path.data(), item.path.length());
+        XorContent(context.indexSecret, (char*)item.path.data(), item.path.length());
         ofs.write(item.path.data(), item.path.length());
     }
 
