@@ -1,4 +1,4 @@
-
+ï»¿
 #include <iostream>
 #include "args.hxx"
 #include <set>
@@ -317,11 +317,11 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
         spdlog::error("Unable to open file: \"{0}\"", pakfile);
         return -1;
     }
-    // ÎÄ¼ş´óĞ¡
+    // æ–‡ä»¶å¤§å°
     inputFile.seekg(0, inputFile.end);
     auto&& fileSize = inputFile.tellg();
     
-    // Í·²¿ĞÅÏ¢¶ÁÈ¡
+    // å¤´éƒ¨ä¿¡æ¯è¯»å–
     char headBuffer[header_length];
     inputFile.seekg(0, inputFile.beg);
     inputFile.read(headBuffer, sizeof(headBuffer));
@@ -331,7 +331,7 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
         return -1;
     }
 
-    // Í·²¿ĞÅÏ¢Ğ£Ñé
+    // å¤´éƒ¨ä¿¡æ¯æ ¡éªŒ
     if (fileSize < header_length || memcmp(headBuffer, signature, sizeof(signature)) != 0)
     {
         spdlog::error("Not a pack file");
@@ -344,19 +344,19 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
     auto version = readUint32InBigEndian(&headBuffer[offset]);
     offset += 4;
 
-    // Ë÷Òı¼ÓÃÜÃØÔ¿
+    // ç´¢å¼•åŠ å¯†ç§˜é’¥
     auto indexSecret = readUint32InBigEndian(&headBuffer[offset]);
     offset += 4;
 
-    // Êı¾İ¼ÓÃÜÃØÔ¿
+    // æ•°æ®åŠ å¯†ç§˜é’¥
     auto dataSecret = readUint32InBigEndian(&headBuffer[offset]);
     offset += 4;
 
-    // Ë÷ÒıÆ«ÒÆ
+    // ç´¢å¼•åç§»
     auto indexOffset = readUint64InBigEndian(&headBuffer[offset]);
     offset += 8;
 
-    // crc32Ğ£ÑéÂë
+    // crc32æ ¡éªŒç 
     auto fileCrc32Value = readUint32InBigEndian(&headBuffer[offset]);
     offset += 4;
 
@@ -366,25 +366,25 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
         return false;
     }
     
-    // ÖØÖÃÆ«ÒÆÖµ
+    // é‡ç½®åç§»å€¼
     offset = indexOffset;
     uint64_t length = fileSize;
 
-    // Ë÷ÒıÏÂ±êÔ½½ç
+    // ç´¢å¼•ä¸‹æ ‡è¶Šç•Œ
     if (length < indexOffset)
     {
         spdlog::error("Not a pack file");
         return -1;
     }
 
-    // ¿ÕÎÄ¼ş
+    // ç©ºæ–‡ä»¶
     if (length == indexOffset)
     {
         spdlog::error("Empty File"); 
         return 0;
     }
 
-    // ·ÖÅäË÷ÒıÇøÓòÄÚ´æ
+    // åˆ†é…ç´¢å¼•åŒºåŸŸå†…å­˜
     auto indexBufLength = length - indexOffset;
     std::unique_ptr<char[]> indexBuffer(new char[indexBufLength]);
     if (!indexBuffer)
@@ -393,7 +393,7 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
         return -1;
     }
 
-    // ¶ÁÈ¡Ë÷ÒıÊı¾İ
+    // è¯»å–ç´¢å¼•æ•°æ®
     inputFile.seekg(indexOffset, inputFile.beg);
     inputFile.read(&indexBuffer[0], indexBufLength);
     if (!inputFile)
@@ -404,7 +404,7 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
 
 #define CHECK_SIZE(num) if(offset + num > indexBufLength) { spdlog::error("Not a pack file"); return -1; }
 
-    // Êı¾İ»º´æ
+    // æ•°æ®ç¼“å­˜
     std::string dataBuffer;
     std::string plaintext;
     uint32_t sumCrc32Value = 0;
@@ -434,14 +434,14 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
         XorContent(indexSecret, (char*)itemPath.data(), itemPath.length());
         std::filesystem::path itemFullpath = outDir + itemPath;
 
-        // Ô¤·ÖÅäÄÚ´æ
+        // é¢„åˆ†é…å†…å­˜
         dataBuffer.reserve(itemLength);
         if (dataBuffer.capacity() < itemLength)
         {
             spdlog::error("out of memory, expected size: {}", itemLength);
             return -1;
         }
-        // ¶ÁÈ¡ÎÄ¼şÊı¾İ
+        // è¯»å–æ–‡ä»¶æ•°æ®
         inputFile.seekg(itemOffset, inputFile.beg);
         inputFile.read(&dataBuffer[0], itemLength);
         if (!inputFile)
@@ -450,7 +450,7 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
             return -1;
         }
 
-        // ´´½¨¶ÔÓ¦µÄÄ¿Â¼½á¹¹
+        // åˆ›å»ºå¯¹åº”çš„ç›®å½•ç»“æ„
         if(!std::filesystem::is_directory(itemFullpath.parent_path()))
             std::filesystem::create_directories(itemFullpath.parent_path());
 
@@ -722,7 +722,7 @@ void PackCommand(args::Subparser& parser)
         for (auto&& o : std::filesystem::recursive_directory_iterator(src)) 
         {
             auto&& p = o.path();
-            // ²»ÊÇÎÄ¼ş, Ã»ÓĞÎÄ¼şÃû, 0×Ö½Ú ¾ÍÌø¹ı
+            // ä¸æ˜¯æ–‡ä»¶, æ²¡æœ‰æ–‡ä»¶å, 0å­—èŠ‚ å°±è·³è¿‡
             if (!o.is_regular_file() || !p.has_filename()) continue;
 
             auto path = p.string().substr(basePath.size());
