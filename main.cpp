@@ -154,7 +154,7 @@ inline void xorContent(uint32_t s, char* buf, size_t len)
   level is supplied, Z_VERSION_ERROR if the version of zlib.h and the
   version of the library linked do not match, or Z_ERRNO if there is
   an error reading or writing the files. */
-static int CompressString(const char* in_str, size_t in_len, std::string& out_str, int level)
+static int compressString(const char* in_str, size_t in_len, std::string& out_str, int level)
 {
     out_str.clear();
 
@@ -431,7 +431,7 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
         auto itemPath = std::string(&indexBuffer[offset], nameLength);
         offset += nameLength;
         
-        XorContent(indexSecret, (char*)itemPath.data(), itemPath.length());
+        xorContent(indexSecret, (char*)itemPath.data(), itemPath.length());
         std::filesystem::path itemFullpath = outDir + itemPath;
 
         // 预分配内存
@@ -462,7 +462,7 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
         }
 
         sumCrc32Value = crc32_fast(dataBuffer.data(), itemLength, sumCrc32Value);
-        XorContent(dataSecret, (char*)dataBuffer.data(), itemLength);
+        xorContent(dataSecret, (char*)dataBuffer.data(), itemLength);
 
         switch (compressionType)
         {
@@ -549,11 +549,11 @@ int DoPack(Context& context, const std::set<std::string>& compressFileExtSet)
 
         if (compressFileExtSet.count(std::filesystem::path(item.path).extension().string()) > 0)
         {
-            if (CompressString(buffer.data(), length, compressedStr, Z_BEST_SPEED) == Z_OK)
+            if (compressString(buffer.data(), length, compressedStr, Z_BEST_SPEED) == Z_OK)
             {
                 length = compressedStr.length();
                 item.compressionType = CompressionType::Gzip;
-                XorContent(context.dataSecret, (char*)compressedStr.data(), compressedStr.length());
+                xorContent(context.dataSecret, (char*)compressedStr.data(), compressedStr.length());
                 ofs.write(compressedStr.data(), compressedStr.length());
                 crc32Value = crc32_fast(compressedStr.data(), compressedStr.length(), crc32Value);
             }
@@ -565,7 +565,7 @@ int DoPack(Context& context, const std::set<std::string>& compressFileExtSet)
 
         if (item.compressionType == CompressionType::None)
         {
-            XorContent(context.dataSecret, (char*)buffer.data(), length);
+            xorContent(context.dataSecret, (char*)buffer.data(), length);
             ofs.write(buffer.data(), length);
             crc32Value = crc32_fast(buffer.data(), length, crc32Value);
         }
@@ -584,7 +584,7 @@ int DoPack(Context& context, const std::set<std::string>& compressFileExtSet)
         fileInfoBuf[13] = item.compressionType;
 
         ofs.write((char*)fileInfoBuf, sizeof(fileInfoBuf));
-        XorContent(context.indexSecret, (char*)item.path.data(), item.path.length());
+        xorContent(context.indexSecret, (char*)item.path.data(), item.path.length());
         ofs.write(item.path.data(), item.path.length());
     }
 
