@@ -360,7 +360,7 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
     auto fileCrc32Value = readUint32InBigEndian(&headBuffer[offset]);
     offset += 4;
 
-    if (version != 0)
+    if (version != 0 && version != 1)
     {
         spdlog::error("Unsupported version {0}", version);
         return false;
@@ -493,6 +493,11 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
     assert(offset == indexBufLength);
 #undef CHECK_SIZE
 
+    if (version != 0)
+    {
+        sumCrc32Value = crc32_fast(&indexBuffer[0], indexBufLength, sumCrc32Value);
+    }
+
     if (fileCrc32Value != sumCrc32Value)
     {
         spdlog::error("CRC verification inconsistency");
@@ -560,6 +565,7 @@ int DoPack(Context& context, const std::set<std::string>& compressFileExtSet)
             else
             {
                 spdlog::error("File \"{0}\" compression failed", item.fullpath);
+                ::exit(2);
             }
         }
 
@@ -584,8 +590,11 @@ int DoPack(Context& context, const std::set<std::string>& compressFileExtSet)
         fileInfoBuf[13] = item.compressionType;
 
         ofs.write((char*)fileInfoBuf, sizeof(fileInfoBuf));
+        crc32Value = crc32_fast((char*)fileInfoBuf, sizeof(fileInfoBuf), crc32Value);
+
         xorContent(context.indexSecret, (char*)item.path.data(), item.path.length());
         ofs.write(item.path.data(), item.path.length());
+        crc32Value = crc32_fast(item.path.data(), item.path.length(), crc32Value);
     }
 
     {
@@ -624,10 +633,10 @@ int DoPack(Context& context, const std::set<std::string>& compressFileExtSet)
 }
 
 
-args::ArgumentParser globalParser("packtool");
+args::ArgumentParser globalParser("packtool v1");
 
 args::Group arguments("arguments");
-args::HelpFlag h(arguments, "help", "help", { 'h', "help" });
+args::HelpFlag h(arguments, "help", "Display this help menu", { 'h', "help" });
 args::ValueFlag<int> logLevel(arguments, "0-6", "The log level", { "log_level" });
 
 void ReadGlobalArguments()
@@ -677,6 +686,7 @@ void PackCommand(args::Subparser& parser)
     args::ValueFlag<uint32_t> useParentDirectory(parser, "0/1", "The data secret", { "keep_parent_directory" });
     args::ValueFlag<std::string> output(parser, "file path", "The output file path", { 'o' });
     args::ValueFlag<uint64_t> maximum(parser, "MB", "The maximum size of a single file", { "maximum"});
+    args::ValueFlag<uint32_t> version(parser, "uint32", "The packaged version", { 'v', "version" }, 1);
     parser.Parse();
 
     ReadGlobalArguments();
@@ -737,7 +747,7 @@ void PackCommand(args::Subparser& parser)
             if (pContext == NULL)
             {
                 pContext = std::make_shared<Context>();
-                pContext->version = 0;
+                pContext->version = version.Get();
                 pContext->indexSecret = indexSecret.Get();
                 pContext->dataSecret = dataSecret.Get();
                 pContext->pakfile = output.Get();
