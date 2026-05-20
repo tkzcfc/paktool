@@ -43,6 +43,10 @@ add_subdirectory(zlib)
 add_executable(${PROJECT_NAME} ${_Sources})
 target_link_libraries(${PROJECT_NAME} PRIVATE zlib)
 
+if(MSVC)
+    # explicit set source charset to utf-8 for windows targets
+    target_compile_options(${PROJECT_NAME} PRIVATE "/utf-8")
+endif()
 
 set(GameBinDir ${CMAKE_BINARY_DIR}/Bin)
 set_target_properties(${name} PROPERTIES
