@@ -484,7 +484,7 @@ int DoUnpack(const std::string& pakfile, std::string outDir)
         }
             break;
         default:
-            spdlog::error("Unsupported compression method: {0}", compressionType);
+            spdlog::error("Unsupported compression method: {0}", static_cast<int>(compressionType));
             break;
         }
         ofs.close();
@@ -804,6 +804,7 @@ void PackCommand(args::Subparser& parser)
             pContext->version = version.Get();
 			pContext->indexSecret = indexSecret.Get();
 			pContext->dataSecret = dataSecret.Get();
+            pContext->pakfile = output.Get();
 			contexts.push_back(pContext);
 		}
 		pContext->items.push_back(item);
