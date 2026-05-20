@@ -688,6 +688,7 @@ void PackCommand(args::Subparser& parser)
     args::ValueFlag<uint64_t> maximum(parser, "MB", "The maximum size of a single file", { "maximum"});
     args::ValueFlag<uint32_t> version(parser, "uint32", "The packaged version", { 'v', "version" }, 1);
     args::NargsValueFlag<std::string> excludePaths(parser, "path...", "The files or directories to be excluded", { 'e', "exclude" }, args::Nargs(1, INT_MAX));
+	args::ValueFlag<uint32_t> autoDelete(parser, "0/1", "The flag to automatically delete the source files after packing", { "auto_delete" });
 
     parser.Parse();
 
@@ -699,14 +700,8 @@ void PackCommand(args::Subparser& parser)
         return;
     }
 
-    std::vector<std::shared_ptr<Context>> contexts;
-
-    std::shared_ptr<Context> pContext = NULL;
-
-    IndexItem item;
-    uint64_t curBytes = 0ULL;
-    uint64_t maxBytes = maximum.Get() * 1024 * 1024;
-    int32_t chunkCount = 0;
+    // 收集待处理的文件列表
+	std::vector<IndexItem> items;
     for (auto&& path : srcDirs.Get())
     {
         auto src = std::filesystem::absolute(path);
@@ -731,7 +726,7 @@ void PackCommand(args::Subparser& parser)
         }
         basePath.push_back('/');
 
-        for (auto&& o : std::filesystem::recursive_directory_iterator(src)) 
+        for (auto&& o : std::filesystem::recursive_directory_iterator(src))
         {
             auto&& p = o.path();
             // 不是文件, 没有文件名, 0字节 就跳过
@@ -740,64 +735,79 @@ void PackCommand(args::Subparser& parser)
             auto path = p.string().substr(basePath.size());
             for (auto& c : path) if (c == '\\') c = '/';
 
-			// 排除路径
-			bool excluded = false;
-			for (auto&& excludePath : excludePaths.Get())
-			{
-				// 匹配路径完全相同
+            // 排除路径
+            bool excluded = false;
+            for (auto&& excludePath : excludePaths.Get())
+            {
+                // 匹配路径完全相同
                 if (excludePath == path)
                 {
-					excluded = true;
-					break;
+                    excluded = true;
+                    break;
                 }
 
                 // 匹配路径是当前路径的父路径(aa/bb/cc/)
                 if (excludePath.back() == '/' && path.compare(0, excludePath.size(), excludePath) == 0)
                 {
-					excluded = true;
-					break;
+                    excluded = true;
+                    break;
                 }
 
                 // 匹配后缀(*.txt)
-				if (excludePath.size() > 2 
-                    && excludePath[0] == '*' 
-                    && excludePath[1] == '.' 
-                    && path.size() >= excludePath.size() - 1 
+                if (excludePath.size() > 2
+                    && excludePath[0] == '*'
+                    && excludePath[1] == '.'
+                    && path.size() >= excludePath.size() - 1
                     && path.compare(path.size() - excludePath.size() + 1, excludePath.size() - 1, excludePath.substr(1)) == 0)
-				{
-					excluded = true;
-					break;
-				}
-			}
+                {
+                    excluded = true;
+                    break;
+                }
+            }
 
             if (excluded) continue;
 
+			IndexItem item;
             item.path = path;
             item.fullpath = p.string();
             item.compressionType = CompressionType::None;
             item.offset = 0;
             item.length = 0;
-
-            if (pContext == NULL)
-            {
-                pContext = std::make_shared<Context>();
-                pContext->version = version.Get();
-                pContext->indexSecret = indexSecret.Get();
-                pContext->dataSecret = dataSecret.Get();
-                pContext->pakfile = output.Get();
-                contexts.push_back(pContext);
-            }
-            pContext->items.push_back(item);
-
-            curBytes += std::filesystem::file_size(p);
-
-            if (maxBytes > 0 && curBytes >= maxBytes)
-            {
-                curBytes = 0;
-                pContext = NULL;
-            }
+			items.push_back(item);
         }
     }
+
+    // 排序，确保每次打包结果一致
+    std::sort(items.begin(), items.end(), [](const IndexItem& a, const IndexItem& b) {
+        return a.path < b.path;
+    });
+
+    std::vector<std::shared_ptr<Context>> contexts;
+    std::shared_ptr<Context> pContext = NULL;
+    uint64_t curBytes = 0ULL;
+    uint64_t maxBytes = maximum.Get() * 1024 * 1024;
+    int32_t chunkCount = 0;
+
+    for(auto&& item : items)
+    {
+        item.length = std::filesystem::file_size(item.fullpath);
+        curBytes += item.length;
+        if (maxBytes > 0 && curBytes >= maxBytes)
+        {
+            curBytes = 0;
+            pContext = NULL;
+            chunkCount++;
+        }
+        if (pContext == NULL)
+        {
+            pContext = std::make_shared<Context>();
+            pContext->version = version.Get();
+			pContext->indexSecret = indexSecret.Get();
+			pContext->dataSecret = dataSecret.Get();
+			contexts.push_back(pContext);
+		}
+		pContext->items.push_back(item);
+	}
     
     std::set<std::string> compressFileExtSet;
     for (auto&& ext : compressFileExt.Get())
@@ -838,6 +848,20 @@ void PackCommand(args::Subparser& parser)
         }
         std::chrono::duration<double, std::milli> elapsed = std::chrono::high_resolution_clock::now() - start;
         spdlog::info("pack time: {0}ms", elapsed.count());
+
+        if (code == 0 && autoDelete.Get() == 1)
+        {
+			for (auto& context : contexts)
+			{
+				for (auto& item : context->items)
+				{
+					if (std::filesystem::exists(item.fullpath))
+					{
+						std::filesystem::remove(item.fullpath);
+					}
+				}
+			}
+        }
 
         ::exit(code == 0 ? contexts.size() : code);
     }
