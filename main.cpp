@@ -1,4 +1,4 @@
-﻿
+
 #include <iostream>
 #include "args.hxx"
 #include <set>
@@ -683,10 +683,12 @@ void PackCommand(args::Subparser& parser)
     args::NargsValueFlag<std::string> compressFileExt(parser, "ext...", "The file types that need to be compressed", {'c', "compress_file_ext"}, args::Nargs(1, INT_MAX));
     args::ValueFlag<uint32_t> indexSecret(parser, "uint32", "The index secret", { 'i', "isecret" });
     args::ValueFlag<uint32_t> dataSecret(parser, "uint32", "The data secret", { 'd', "dsecret" });
-    args::ValueFlag<uint32_t> useParentDirectory(parser, "0/1", "The data secret", { "keep_parent_directory" });
+    args::ValueFlag<uint32_t> useParentDirectory(parser, "0/1", "The flag to keep the parent directory", { "keep_parent_directory" });
     args::ValueFlag<std::string> output(parser, "file path", "The output file path", { 'o' });
     args::ValueFlag<uint64_t> maximum(parser, "MB", "The maximum size of a single file", { "maximum"});
     args::ValueFlag<uint32_t> version(parser, "uint32", "The packaged version", { 'v', "version" }, 1);
+    args::NargsValueFlag<std::string> excludePaths(parser, "path...", "The files or directories to be excluded", { 'e', "exclude" }, args::Nargs(1, INT_MAX));
+
     parser.Parse();
 
     ReadGlobalArguments();
@@ -738,6 +740,38 @@ void PackCommand(args::Subparser& parser)
             auto path = p.string().substr(basePath.size());
             for (auto& c : path) if (c == '\\') c = '/';
 
+			// 排除路径
+			bool excluded = false;
+			for (auto&& excludePath : excludePaths.Get())
+			{
+				// 匹配路径完全相同
+                if (excludePath == path)
+                {
+					excluded = true;
+					break;
+                }
+
+                // 匹配路径是当前路径的父路径(aa/bb/cc/)
+                if (excludePath.back() == '/' && path.compare(0, excludePath.size(), excludePath) == 0)
+                {
+					excluded = true;
+					break;
+                }
+
+                // 匹配后缀(*.txt)
+				if (excludePath.size() > 2 
+                    && excludePath[0] == '*' 
+                    && excludePath[1] == '.' 
+                    && path.size() >= excludePath.size() - 1 
+                    && path.compare(path.size() - excludePath.size() + 1, excludePath.size() - 1, excludePath.substr(1)) == 0)
+				{
+					excluded = true;
+					break;
+				}
+			}
+
+            if (excluded) continue;
+
             item.path = path;
             item.fullpath = p.string();
             item.compressionType = CompressionType::None;
@@ -771,6 +805,15 @@ void PackCommand(args::Subparser& parser)
 
     try
     {
+        if (contexts.empty())
+        {
+            pContext = std::make_shared<Context>();
+            pContext->version = version.Get();
+            pContext->indexSecret = indexSecret.Get();
+            pContext->dataSecret = dataSecret.Get();
+            pContext->pakfile = output.Get();
+            contexts.push_back(pContext);
+        }
         if (contexts.size() > 1)
         {
             for (std::size_t i = 0; i < contexts.size(); ++i)
