@@ -35,7 +35,7 @@ struct IndexItem
 {
     std::string path;
     std::string fullpath;
-    uint32_t offset;
+    uint64_t offset;
     uint32_t length;
     CompressionType compressionType;
 };
@@ -577,7 +577,7 @@ int DoPack(Context& context, const std::set<std::string>& compressFileExtSet)
         }
 
         item.offset = offset;
-        item.length = length;
+        item.length = static_cast<uint32_t>(length);
         offset += length;
     }
 
@@ -790,7 +790,7 @@ void PackCommand(args::Subparser& parser)
 
     for(auto&& item : items)
     {
-        item.length = std::filesystem::file_size(item.fullpath);
+        item.length = static_cast<uint32_t>(std::filesystem::file_size(item.fullpath));
         curBytes += item.length;
         if (maxBytes > 0 && curBytes >= maxBytes)
         {
@@ -864,7 +864,7 @@ void PackCommand(args::Subparser& parser)
 			}
         }
 
-        ::exit(code == 0 ? contexts.size() : code);
+        ::exit(code == 0 ? static_cast<int>(contexts.size()) : code);
     }
     catch (const std::exception& e)
     {
